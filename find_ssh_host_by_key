@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# Either a file containing nmap report of hosts w/ open ssh or a subnet mask to check
+nmap_report=$1
+
+if ! [ -f "$nmap_report" ]; then
+  report=$(mktemp)
+  nmap --open -p22 $nmap_report > $report
+  nmap_report=$report
+fi
+target_key=$2
+my_ips=$(ifconfig | awk '/inet / { print $2 }')
+hosts=$(grep -v -f <(echo "$my_ips") $nmap_report| awk '/report for/ { print $5 }' )
+show_ssh_host_key() {
+  ip_address=$1
+  echo $(ssh-keyscan -t ecdsa $ip_address 2>/dev/null |awk '{ print $3 }')
+}
+for i in $hosts; do
+  host_key=$(show_ssh_host_key $i)
+  if [ -z "$host_key" ]; then
+    continue
+  fi
+  if [ "$host_key" == "$target_key" ]; then
+    echo "Found match $i"
+  #else
+    #echo "$i w/ key $host_key does not match."
+    #echo "$(ssh-keyscan $i 2>/dev/null)"
+  fi
+done
